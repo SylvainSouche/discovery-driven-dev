@@ -32,7 +32,7 @@ typed object and stating a more precise requirement, the second won every time.
 ## The refinement DAG is the specification layer
 
 `A refines B` means A is a more precise statement of B. Chains run deep — the
-rade-bmake pilot reached depth 9. The structure gives you three things free:
+bmake-it pilot reached depth 9. The structure gives you three things free:
 
 - **Intent** is at the roots: broad statements nothing refines further upward.
 - **Specification** is depth: each level adds precision.

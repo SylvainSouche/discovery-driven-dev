@@ -26,7 +26,7 @@ A report that flags everything is noise, and noise gets ignored. These
 exclusions are the difference between a useful report and an ignored one.
 
 **Non-leaf requirements owe no implementation.** A requirement something else
-refines is not the thing you build — its leaves are. rade-bmake has 71
+refines is not the thing you build — its leaves are. bmake-it has 71
 confirmed requirements and 28 leaves; demanding an IMPL for each level of a
 9-deep chain would flag the same code repeatedly.
 

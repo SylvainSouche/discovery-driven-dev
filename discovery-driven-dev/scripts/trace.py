@@ -8,7 +8,7 @@ work starts, so this tool exists to answer questions from the index and
 targeted lookups instead.
 
 It also computes inverse relationships. Nothing stores `decides` or
-`refined_by`; they are derived here from the forward edges. The rade-bmake
+`refined_by`; they are derived here from the forward edges. The bmake-it
 pilot stored both directions and they disagreed — 82 against 69 — which is
 what storing an inverse buys you.
 

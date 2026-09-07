@@ -72,7 +72,7 @@ INACTIVE_STATUSES = {"rejected", "superseded", "refuted", "stale"}
 #   2. No inverse is ever stored. `decides`, `produced`, `refined_by` and
 #      friends are COMPUTED from the index by trace.py.
 #
-# rade-bmake stored both directions and they already disagree: 82 decided_by
+# bmake-it stored both directions and they already disagree: 82 decided_by
 # against 69 decides. That is the cost of storing inverses.
 
 RELATIONSHIPS = {
@@ -83,7 +83,7 @@ RELATIONSHIPS = {
     "resolves":     ("dec|cand|ai|req|nreq", "obs",
                      "Closes an open observation. A negative requirement closes "
                      "the observation that prompted it just as a decision does — "
-                     "the rade-bmake pilot had four such edges."),
+                     "the bmake-it pilot had four such edges."),
     "raised_by":    ("obs",          "*",          "What surfaced this observation."),
     "motivated_by": ("req|nreq",     "uc",         "The use case this requirement serves."),
     "implements":   ("impl",         "req|nreq",   "Code realizes this requirement."),
