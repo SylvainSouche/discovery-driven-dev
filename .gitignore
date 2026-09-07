@@ -1,0 +1,19 @@
+__pycache__/
+*.py[cod]
+.DS_Store
+
+# Working models and migration output — anchored to the repo root so these
+# patterns cannot swallow a real skill file (an unanchored `migration.md`
+# silently excluded references/migration.md).
+/project-model/
+/project-model.pre-v*/
+/*-migration-analysis-*.md
+/migration.md
+
+# Build output
+/dist/
+/*.zip
+/*.skill
+
+# Chat capture — kept out of the public skill repo (contains project detail)
+/conversation/
