@@ -73,8 +73,13 @@ python3 scripts/check_impl.py --src . --ext .c,.h # markers vs model
 
 ## What is in the box
 
+The repo root **is** the skill — clone it and point a skill loader straight
+at it, no subfolder to find. `build.sh` stages it into a `discovery-driven-dev/`
+folder only when producing the upload archive, since that's what the format
+requires.
+
 ```
-discovery-driven-dev/
+./                            = discovery-driven-dev/ once installed
 ├── SKILL.md                 thin router, always loaded (~1,270 tokens)
 ├── references/              loaded on demand
 │   ├── objects.md           types, the nine relationships, supersession

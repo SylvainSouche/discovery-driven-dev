@@ -15,7 +15,7 @@ import tempfile
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
-S = REPO / "discovery-driven-dev" / "scripts"
+S = REPO / "scripts"
 PASS = FAIL = 0
 FAILURES = []
 
