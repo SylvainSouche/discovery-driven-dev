@@ -387,14 +387,15 @@ def cmd_supersede(root, a):
                              f"(use ':title' for no alias)")
         alias, title = spec.split(":", 1)
         alias, title = alias.strip(), title.strip()
+        if len(a.with_) == 1:
+            note_tail = "Carries forward what remained valid and states what changed."
+        else:
+            note_tail = ("One of several statements replacing that object; each is "
+                         "coherent on its own.")
         ns = argparse.Namespace(
             type=otype, title=title, origin=a.origin, alias=alias,
             status="", certainty="", facets=old["fm"].get("facets", "").strip("[]"),
-            note=(f"Supersedes {old_id} ({old['title']}).\n\n"
-                  f"{'Carries forward what remained valid and states what changed.'
-                     if len(a.with_) == 1 else
-                     'One of several statements replacing that object; each is '
-                     'coherent on its own.'}"),
+            note=f"Supersedes {old_id} ({old['title']}).\n\n{note_tail}",
             relates=[f"supersedes:{old_id}", f"decided_by:{dec_id}"] +
                     [f"refines:{r}" for r in inherited])
         cmd_new(root, ns)
