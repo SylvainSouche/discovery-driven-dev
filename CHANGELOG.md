@@ -4,6 +4,24 @@ Two version numbers, deliberately. `version` is the skill; `schema_version` is
 the on-disk object format. A skill change that does not alter the format does
 not trigger a migration.
 
+## 2.4.0 — schema_version 2
+
+- `check --strict` gained a citation/edge-parity rule: if an object's body
+  names another object by its `TYPE-alias` shorthand (e.g. `REQ-foo-bar`),
+  a matching edge must exist somewhere in its own frontmatter. Found by
+  auditing a 306-object field model: 0% of REQs were unlinked, but 89% of
+  DECs and 68% of OBSs cited prior context in prose with no edge recording
+  it — reachable by a human reading the file, invisible to `trace.py`
+  walking the graph. Deliberately narrow: an object that cites nothing is
+  untouched, and the check flags the gap rather than guessing which key
+  (`informed_by`, `resolves`, `raised_by`, ...) to write.
+- Fixed `model.py`'s own `SKILL_VERSION` constant, which had been stuck at
+  `2.1.0` through the 2.2.0 and 2.3.0 releases. Every object written by
+  those two versions was stamped `generator: model.py/2.1.0` regardless of
+  what actually wrote it — a small, ironic instance of the exact drift this
+  skill exists to catch, found while auditing a downstream model rather
+  than by anything in this repo's own test suite.
+
 ## 2.3.0 — schema_version 2
 
 - `trace.py open` became the full outstanding-work agenda: ten groups derived

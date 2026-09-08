@@ -45,7 +45,14 @@ from schema import (SCHEMA_VERSION, TYPES, STATUSES, DEFAULT_STATUS,
                     INACTIVE_STATUSES, RELATIONSHIPS, RELATIONSHIP_KEYS,
                     INVERSE_LABELS, CERTAINTIES)
 
-SKILL_VERSION = "2.1.0"          # bumped on any skill change
+SKILL_VERSION = "2.4.0"          # bumped on any skill change
+# 2.4.0 — check --strict gained a citation/edge-parity rule: if a body cites
+#         another object by TYPE-alias, a matching edge must exist. Also
+#         fixes this very constant, which had been stuck at 2.1.0 through
+#         the 2.2.0 and 2.3.0 releases -- every object written in between
+#         was silently stamped generator: model.py/2.1.0 regardless of the
+#         version actually running. SCHEMA_VERSION unchanged either time:
+#         no object format change, so no migration.
 # 2.1.0 — supersession made explicitly total; `supersede` subcommand
 #         added for the absorb and split cases. SCHEMA_VERSION is
 #         unchanged: no object format change, so no migration.
@@ -57,6 +64,13 @@ HOST_ID_PATH = Path.home() / ".cache" / "discovery-driven-dev" / "host_id"
 # metadata about it).
 SUMMED = ["schema_version", "id", "alias", "type", "status", "origin",
           "created", "certainty", "facets"]
+
+# Matches the TYPE-alias shorthand the skill itself writes in prose, e.g.
+# "REQ-foo-bar" or "DEC-search-dec". Used by check's citation/edge-parity
+# rule below -- not by resolve(), which already handles this more generally.
+CITATION_RE = re.compile(
+    r"\b(?:REQ|NREQ|DEC|OBS|CON|IMPL|TEST|CAND|AI|ASM|UC)-"
+    r"([a-z][a-z0-9-]*[a-z0-9])\b")
 
 
 # --------------------------------------------------------------------------
@@ -459,6 +473,28 @@ def cmd_check(root, a):
                     if (src_ok != "*" and t not in src_ok.split("|")) or \
                        (dst_ok != "*" and dt not in dst_ok.split("|")):
                         problems.append((i, "illegal", f"{t} --{k}--> {dt} not allowed"))
+
+    # Citation/edge parity. If a body names another object by its TYPE-alias
+    # form (the same shorthand the skill itself writes in prose, e.g.
+    # "REQ-foo-bar"), the writer plainly knew what shaped this object --
+    # only the formal edge was skipped. This never invents a relationship:
+    # an object that cites nothing is untouched, and a cited object with no
+    # matching edge is flagged, not auto-linked, since which key (informed_by,
+    # resolves, raised_by, ...) is a judgment call the tool won't guess at.
+    alias_to_id = {o["fm"]["alias"]: j for j, o in objs.items() if o["fm"].get("alias")}
+    for i, o in objs.items():
+        if o["fm"].get("status") in INACTIVE_STATUSES:
+            continue
+        own_targets = {t2 for targets in o["rels"].values() for t2 in targets}
+        cited = set()
+        for m in CITATION_RE.finditer(o["body"]):
+            tid = alias_to_id.get(m.group(1))
+            if tid and tid != i:
+                cited.add(tid)
+        missing = cited - own_targets
+        if missing:
+            names = ", ".join(sorted(objs[t2]["fm"].get("alias", t2) for t2 in missing))
+            problems.append((i, "uncited", f"body names {names} but no edge records it"))
 
     # Supersession invariants. Supersession is total, so the model must not
     # contain a live object that something has replaced, nor a refinement

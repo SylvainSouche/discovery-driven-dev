@@ -1,6 +1,6 @@
 ---
 name: discovery-driven-dev
-version: 2.3.0
+version: 2.4.0
 schema_version: 2
 license: MIT
 description: Keep requirements, decisions, use cases and implementation links in durable files instead of in the conversation. Use when specifying, designing, or building software across more than one session — or whenever a project has a project-model/ directory.

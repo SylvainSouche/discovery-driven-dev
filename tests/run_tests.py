@@ -117,6 +117,21 @@ def t_tamper_detection(d):
     assert "TAMPERED" in out, "hand-edited frontmatter must be detected"
 
 
+def t_citation_edge_parity(d):
+    seed(d)
+    run(d, "model.py", "new", "--type", "dec", "--alias", "cites-but-skips",
+        "--title", "A decision citing another object only in prose", "--origin", "user",
+        "--note", "This builds directly on REQ-rc without a formal edge.")
+    # soft: a plain check() must still succeed with the finding present
+    out = run(d, "model.py", "check")
+    assert "UNCITED" in out, "a body naming REQ-rc with no matching edge must be flagged"
+    # but --strict treats every finding as a failure
+    run(d, "model.py", "check", "--strict", expect_fail=True)
+    run(d, "model.py", "link", "--from", "cites-but-skips", "--key", "informed_by", "--to", "rc")
+    out = run(d, "model.py", "check", "--strict")
+    assert "UNCITED" not in out, "linking the cited object must clear the finding"
+
+
 def t_supersede_absorb(d):
     seed(d)
     run(d, "model.py", "new", "--type", "dec", "--alias", "d2",
