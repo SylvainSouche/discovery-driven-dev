@@ -1,6 +1,6 @@
 ---
 name: discovery-driven-dev
-version: 2.4.0
+version: 2.5.0
 schema_version: 2
 license: MIT
 description: Keep requirements, decisions, use cases and implementation links in durable files instead of in the conversation. Use when specifying, designing, or building software across more than one session — or whenever a project has a project-model/ directory.
@@ -30,6 +30,12 @@ its behaviour by writing YAML that looks right. `model.py check` detects
 hand-written objects by checksum, so improvised writes will be found.
 
 Object bodies are prose and are free to edit. Frontmatter is machine territory.
+
+A label needing to change — a project renamed, a typo in `origin`, a facet
+reassigned — is not a decision and does not need supersession. Use
+`model.py amend`, not a text editor: it logs a brief, independently
+checksummed "what changed and why" note, so the fix is real without a DEC
+asserting nothing new about the world.
 
 ## Orientation, every session
 
@@ -95,6 +101,7 @@ spec-grade statements, and they are where implementation attaches:
 | Command | Does |
 |---|---|
 | `model.py new\|link\|status` | the only write path |
+| `model.py amend` | relabel alias/origin/facets/certainty in place — not a decision, so no supersession |
 | `model.py supersede` | replace an object — absorb into one, or split across several |
 | `model.py check --strict` | validity, tamper detection, dangling edges, cycles |
 | `model.py leaves` | most-specific requirements |

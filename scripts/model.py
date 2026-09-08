@@ -15,6 +15,8 @@ Subcommands:
     new      create an object
     link     add a relationship between two existing objects
     status   change an object's status
+    amend    change a labeling field (alias/origin/facets/certainty) in
+             place, logging a terse, checksummed "date: reason" entry
     index    regenerate index.md, alias_table.json and model.json
     check    verify the model (see also: --strict)
     leaves   list refinement-DAG leaves (the spec-grade requirements)
@@ -45,7 +47,13 @@ from schema import (SCHEMA_VERSION, TYPES, STATUSES, DEFAULT_STATUS,
                     INACTIVE_STATUSES, RELATIONSHIPS, RELATIONSHIP_KEYS,
                     INVERSE_LABELS, CERTAINTIES)
 
-SKILL_VERSION = "2.4.0"          # bumped on any skill change
+SKILL_VERSION = "2.5.0"          # bumped on any skill change
+# 2.5.0 — new `amend` subcommand: change alias/origin/facets/certainty on an
+#         existing object without supersession. Every amendment appends a
+#         terse "date: reason" entry to `amended`, checksummed independently
+#         of the object's own checksum (SUMMED, and therefore every existing
+#         object's checksum, is untouched -- no migration needed). id stays
+#         permanent, type requires supersede, status keeps its own command.
 # 2.4.0 — check --strict gained a citation/edge-parity rule: if a body cites
 #         another object by TYPE-alias, a matching edge must exist. Also
 #         fixes this very constant, which had been stuck at 2.1.0 through
@@ -137,6 +145,13 @@ def write(root, fm, rels, body):
     for k in sorted(rels):
         if rels[k]:
             lines.append(f"rel_{k}: [{', '.join(sorted(set(rels[k])))}]")
+    # amended/amended_checksum sit outside SUMMED on purpose (see log_checksum):
+    # they carry their own, independent checksum rather than folding into the
+    # object's main one, so adding this pair never invalidates every existing
+    # object's checksum the moment amend ships.
+    if fm.get("amended"):
+        lines.append(f"amended: {fm['amended']}")
+        lines.append(f"amended_checksum: {fm['amended_checksum']}")
     lines += [f"generator: {fm['generator']}", f"checksum: {fm['checksum']}", "---"]
     path = root / fm["type"] / f"{fm['id']}.md"
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -310,6 +325,63 @@ def cmd_status(root, a):
     print(f"{oid}: status -> {a.to}")
 
 
+AMENDABLE_FIELDS = {"alias", "origin", "facets", "certainty"}
+
+
+def log_checksum(text):
+    return hashlib.sha256(text.encode()).hexdigest()[:12]
+
+
+def cmd_amend(root, a):
+    """Change a labeling field in place — alias, origin, facets, certainty.
+    Deliberately excludes id (permanent identity; every edge stores it),
+    type (would require moving the file to a different directory — a
+    reclassification, not a label fix), status (already has its own
+    validated command), and created/schema_version (system-managed).
+
+    Every amendment appends a terse, undated-before entry to `amended`
+    ("YYYY-MM-DD: reason", nothing else — no before-value, since that's
+    what would make this supersession-by-stealth) and stamps a checksum
+    over that log text alone, independent of the object's own checksum.
+    Editing the log without going through here is caught by check the
+    same way editing anything else by hand is."""
+    if a.field not in AMENDABLE_FIELDS:
+        raise SystemExit(
+            f"--field must be one of {', '.join(sorted(AMENDABLE_FIELDS))}. "
+            f"id is permanent, type needs supersede (it's a reclassification, "
+            f"not a label), status has its own command.")
+    objs = load(root)
+    oid = resolve(objs, a.id)
+    o = objs[oid]
+    fm = dict(o["fm"])
+
+    if a.field == "alias":
+        if not re.fullmatch(r"[a-z0-9][a-z0-9-]*", a.value):
+            raise SystemExit("Alias must be lowercase letters, digits and hyphens.")
+        for j, other in objs.items():
+            if j != oid and other["fm"].get("alias") == a.value and \
+               other["fm"].get("status") not in INACTIVE_STATUSES:
+                raise SystemExit(f"Alias '{a.value}' is in use by active object {j}.")
+        new_value = a.value
+    elif a.field == "certainty":
+        if fm.get("type") == "asm" and a.value and a.value not in CERTAINTIES:
+            raise SystemExit(f"certainty must be one of {', '.join(CERTAINTIES)}")
+        new_value = a.value
+    elif a.field == "facets":
+        new_value = f"[{', '.join(f.strip() for f in a.value.split(',') if f.strip())}]"
+    else:
+        new_value = a.value
+
+    fm[a.field] = new_value
+    entry = f"{datetime.date.today().isoformat()}: {a.reason}"
+    fm["amended"] = f"{fm['amended']}; {entry}" if fm.get("amended") else entry
+    fm["amended_checksum"] = log_checksum(fm["amended"])
+
+    write(root, fm, o["rels"], o["body"])
+    regenerate(root)
+    print(f"{oid}: {a.field} -> {new_value}\n  logged: {entry}")
+
+
 def cmd_leaves(root, a):
     """Leaves of the refinement DAG are the most specific requirements in the
     model. They are what a SPEC object would have been, and they are where IMPL
@@ -450,6 +522,9 @@ def cmd_check(root, a):
             problems.append((i, "unstamped", "no checksum — this object was written by hand"))
         elif fm["checksum"] != checksum(fm, rels):
             problems.append((i, "tampered", "checksum mismatch — frontmatter edited outside model.py"))
+        if fm.get("amended") and fm.get("amended_checksum") != log_checksum(fm["amended"]):
+            problems.append((i, "log-tampered",
+                             "amended checksum mismatch — log edited outside model.py amend"))
         t = fm.get("type")
         if t not in TYPES:
             problems.append((i, "type", f"unknown type '{t}'"))
@@ -564,8 +639,8 @@ def cmd_check(root, a):
     # Supersession breakages are incoherence, not untidiness: an active object
     # refining a replaced one, or a replaced object still marked live, means the
     # model asserts something it has already retracted. These must fail CI.
-    hard = {"tampered", "dangling", "vocab", "illegal", "cycle", "schema",
-            "refines-dead", "live-superseded", "orphan-superseded"}
+    hard = {"tampered", "log-tampered", "dangling", "vocab", "illegal", "cycle",
+            "schema", "refines-dead", "live-superseded", "orphan-superseded"}
     return 1 if (a.strict or set(by_kind) & hard) else 0
 
 
@@ -610,6 +685,13 @@ def main():
     s.add_argument("--id", required=True)
     s.add_argument("--to", required=True)
 
+    am = add_root(sub.add_parser("amend"))
+    am.add_argument("--id", required=True)
+    am.add_argument("--field", required=True, choices=sorted(AMENDABLE_FIELDS))
+    am.add_argument("--value", required=True)
+    am.add_argument("--reason", required=True,
+                    help="brief — logged verbatim, no before-value")
+
     add_root(sub.add_parser("index"))
     add_root(sub.add_parser("leaves"))
 
@@ -629,6 +711,8 @@ def main():
         cmd_supersede(root, a)
     elif a.cmd == "status":
         cmd_status(root, a)
+    elif a.cmd == "amend":
+        cmd_amend(root, a)
     elif a.cmd == "leaves":
         cmd_leaves(root, a)
     elif a.cmd == "index":

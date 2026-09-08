@@ -4,6 +4,30 @@ Two version numbers, deliberately. `version` is the skill; `schema_version` is
 the on-disk object format. A skill change that does not alter the format does
 not trigger a migration.
 
+## 2.5.0 — schema_version 2
+
+- New `amend` subcommand: `model.py amend --id X --field alias|origin|facets|
+  certainty --value V --reason "..."` changes a labeling field on an
+  existing object in place, without supersession. Prompted by a real case:
+  a project got renamed, and the old name was baked into several objects'
+  `origin` fields — hand-editing would be flagged tampered, and superseding
+  each one just to fix a name would require a DEC per object to authorize a
+  change that asserts nothing new about the world.
+- Every amendment appends a terse `"YYYY-MM-DD: reason"` entry to a new
+  `amended` field — no before-value, just what changed and why, briefly.
+  That field carries its own checksum (`amended_checksum`), independent of
+  the object's existing one: hand-editing the log is now caught by `check`
+  (`LOG-TAMPERED`) exactly as hand-editing anything else already was.
+- Deliberately excludes `id` (permanent — every edge stores it), `type`
+  (would require moving the file to a different directory; a
+  reclassification, not a label fix), and `status` (already has its own
+  validated command).
+- `amended`/`amended_checksum` sit outside `SUMMED` on purpose: adding them
+  to the object's own checksum formula would have invalidated every
+  existing object's checksum the moment this shipped, forcing a schema
+  migration for a feature that doesn't touch the object format. Two
+  independent checksums instead of one migration.
+
 ## 2.4.0 — schema_version 2
 
 - `check --strict` gained a citation/edge-parity rule: if an object's body

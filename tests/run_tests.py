@@ -9,6 +9,7 @@ Run from the repository root:
 Each test builds a throwaway model in a temporary directory. Nothing here
 touches a real project.
 """
+import re
 import subprocess
 import sys
 import tempfile
@@ -115,6 +116,41 @@ def t_tamper_detection(d):
     # check() exits non-zero on a hard problem, which tampering is
     out = run(d, "model.py", "check", expect_fail=True)
     assert "TAMPERED" in out, "hand-edited frontmatter must be detected"
+
+
+def _file_for_alias(d, typ, alias):
+    for f in (d / "project-model" / typ).glob("*.md"):
+        if re.search(rf"^alias: {re.escape(alias)}$", f.read_text(), re.M):
+            return f
+    raise AssertionError(f"no {typ} object with alias {alias}")
+
+
+def t_amend(d):
+    seed(d)
+    f = _file_for_alias(d, "req", "r")
+    text_before = f.read_text()
+    out = run(d, "model.py", "amend", "--id", "r", "--field", "origin",
+              "--value", "user statement, corrected", "--reason", "fixed a typo")
+    assert "origin -> user statement, corrected" in out
+    text = f.read_text()
+    assert "origin: user statement, corrected" in text
+    assert "amended: " in text and "fixed a typo" in text
+    assert "amended_checksum: " in text
+    # the object's own checksum changed too, since origin is a SUMMED field
+    assert text != text_before
+    run(d, "model.py", "check", "--strict")  # clean after a real amend
+    # forbidden fields are rejected outright, before touching the model
+    r = subprocess.run([sys.executable, str(S / "model.py"), "amend", "--id", "r",
+                        "--field", "status", "--value", "proposed", "--reason", "x"],
+                       cwd=d, capture_output=True, text=True)
+    assert r.returncode != 0, "status must keep using the dedicated status command"
+    # hand-editing the log text (not the checksummed frontmatter it logs
+    # about) must be caught independently of ordinary tamper detection
+    f.write_text(text.replace("fixed a typo", "fixed something else entirely"))
+    out = run(d, "model.py", "check", "--strict", expect_fail=True)
+    assert "LOG-TAMPERED" in out, "hand-edited log text must be caught by its own checksum"
+    assert "\nTAMPERED" not in out, \
+        "the object's own checksum must be untouched by a log-only edit"
 
 
 def t_citation_edge_parity(d):
