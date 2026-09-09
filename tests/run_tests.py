@@ -280,6 +280,24 @@ def t_relocatable(d):
         "the model must not depend on its own path"
 
 
+def t_auto_bundle(d):
+    backup = d / "project-model-backup.tar.gz"
+    assert not backup.exists(), "sanity: nothing bundled before any write"
+    seed(d)  # every model.py new call inside seed() should trigger a bundle
+    assert backup.exists(), "a mutating command must bundle automatically, unprompted"
+    import tarfile
+    with tarfile.open(backup) as tf:
+        names = tf.getnames()
+    assert any(n.endswith("MANIFEST.json") for n in names)
+    assert any("/req/" in n and n.endswith(".md") for n in names), \
+        "the bundle must contain the actual objects, not just the manifest"
+    mtime_after_seed = backup.stat().st_mtime
+    # a later, unrelated write must re-bundle too -- not just the first one
+    run(d, "model.py", "status", "--id", "r", "--to", "proposed")
+    assert backup.stat().st_mtime >= mtime_after_seed, \
+        "amend/status/link must re-trigger the bundle, not only new"
+
+
 TESTS = [(k[2:].replace("_", " "), v) for k, v in sorted(globals().items())
          if k.startswith("t_")]
 

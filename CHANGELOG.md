@@ -4,6 +4,36 @@ Two version numbers, deliberately. `version` is the skill; `schema_version` is
 the on-disk object format. A skill change that does not alter the format does
 not trigger a migration.
 
+## 2.6.0 — schema_version 2
+
+- New `scripts/bundle.py`, called automatically and unconditionally at the
+  end of `regenerate()` — after every `new`/`link`/`status`/`amend`/
+  `supersede`, with no agent judgment involved. The whole premise of this
+  skill is that project-model/ is durable; that's only true if the
+  filesystem underneath it is. A claude.ai web-chat sandbox has no
+  persistence contract, and a design chat's sandbox reset proved it: 16
+  objects existed only inside it and were gone the moment it reset, because
+  nothing had exported a copy first.
+- Writes two copies, and they are not equivalent. `project-model-backup.
+  tar.gz` next to `project-model/` is convenient but shares its sandbox —
+  a full reset destroys this copy too. The one that actually matters is a
+  second copy in `/mnt/user-data/outputs/`, written only if that directory
+  exists: on Claude's code-execution environment that path is
+  conventionally backed by storage outside the ephemeral compute sandbox,
+  so it can survive exactly the failure that already happened once. On any
+  other environment (a real filesystem, Claude Code, Cowork with a
+  connected folder) the directory won't exist and this half is a silent
+  no-op — project-model/ already lives outside the sandbox there and needs
+  no rescuing.
+- A best-effort export must never break the write it rides on: `bundle()`
+  catches a failed target internally, and `regenerate()`'s call site
+  catches everything else too, so a bundling bug can never turn into a
+  failed `model.py new`.
+- Each bundle carries `MANIFEST.json`: schema/skill version, object/edge
+  counts, and a checksum-of-checksums (sha256 over every object's own
+  stamped checksum) so two bundles' states can be compared at a glance
+  without re-verifying every file.
+
 ## 2.5.0 — schema_version 2
 
 - New `amend` subcommand: `model.py amend --id X --field alias|origin|facets|

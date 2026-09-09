@@ -43,11 +43,25 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 import schema
+import bundle as bundle_mod
 from schema import (SCHEMA_VERSION, TYPES, STATUSES, DEFAULT_STATUS,
                     INACTIVE_STATUSES, RELATIONSHIPS, RELATIONSHIP_KEYS,
                     INVERSE_LABELS, CERTAINTIES)
 
-SKILL_VERSION = "2.5.0"          # bumped on any skill change
+SKILL_VERSION = "2.6.0"          # bumped on any skill change
+# 2.6.0 — new bundle.py, called automatically and unconditionally at the end
+#         of regenerate() -- i.e. after every new/link/status/amend/supersede,
+#         with no agent judgment involved. Writes project-model-backup.tar.gz
+#         next to project-model/ (convenient, but shares its sandbox: a full
+#         reset destroys this copy too) and, if /mnt/user-data/outputs/
+#         exists, a second copy there (the one that actually matters -- that
+#         path is conventionally backed by storage outside the ephemeral
+#         compute sandbox on Claude's code-execution environment). Prompted
+#         by a real loss: a design chat's sandbox reset destroyed 16 objects
+#         that existed only inside it, because nothing had exported them
+#         first. A best-effort export must never break the write it rides
+#         on: bundle() catches OSError per target internally, and the call
+#         site in regenerate() catches everything else too.
 # 2.5.0 — new `amend` subcommand: change alias/origin/facets/certainty on an
 #         existing object without supersession. Every amendment appends a
 #         terse "date: reason" entry to `amended`, checksummed independently
@@ -230,6 +244,16 @@ def regenerate(root):
         "edges": sum(len(v) for o in objs.values() for v in o["rels"].values()),
         "last_write": datetime.datetime.now().isoformat(timespec="seconds"),
     }, indent=2) + "\n", encoding="utf-8")
+
+    # Unconditional, on every write, no agent judgment involved: this is
+    # what actually survives a sandbox reset, not a rule someone has to
+    # remember. A bundling failure must never break the write that landed
+    # cleanly before this ran.
+    try:
+        bundle_mod.bundle(root, skill_version=SKILL_VERSION)
+    except Exception:
+        pass
+
     return objs
 
 

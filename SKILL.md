@@ -1,6 +1,6 @@
 ---
 name: discovery-driven-dev
-version: 2.5.0
+version: 2.6.0
 schema_version: 2
 license: MIT
 description: Keep requirements, decisions, use cases and implementation links in durable files instead of in the conversation. Use when specifying, designing, or building software across more than one session — or whenever a project has a project-model/ directory.
@@ -36,6 +36,16 @@ reassigned — is not a decision and does not need supersession. Use
 `model.py amend`, not a text editor: it logs a brief, independently
 checksummed "what changed and why" note, so the fix is real without a DEC
 asserting nothing new about the world.
+
+This whole skill assumes `project-model/` is durable. That's only true if the
+filesystem underneath it is — a bare claude.ai web-chat sandbox has no
+persistence contract, and can reset without warning. Every write already
+triggers `bundle.py` unconditionally, exporting a copy to
+`/mnt/user-data/outputs/` when that path exists, which is the one that
+actually survives a sandbox reset. Nothing to do here — it's automatic — but
+know that it's *why* a `project-model-backup.tar.gz` will appear on disk, and
+don't rely on that sibling copy alone: it shares the same sandbox as
+everything else and won't survive a full reset by itself.
 
 ## Orientation, every session
 
@@ -104,6 +114,7 @@ spec-grade statements, and they are where implementation attaches:
 | `model.py amend` | relabel alias/origin/facets/certainty in place — not a decision, so no supersession |
 | `model.py supersede` | replace an object — absorb into one, or split across several |
 | `model.py check --strict` | validity, tamper detection, dangling edges, cycles |
+| `bundle.py` | runs automatically after every write — exports outside the sandbox, no attention needed |
 | `model.py leaves` | most-specific requirements |
 | `trace.py find\|show\|walk\|orphans` | cheap reads, computed inverses |
 | `trace.py open` | the outstanding-work agenda, derived from status |
