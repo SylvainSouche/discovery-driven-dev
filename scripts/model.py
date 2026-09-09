@@ -48,7 +48,17 @@ from schema import (SCHEMA_VERSION, TYPES, STATUSES, DEFAULT_STATUS,
                     INACTIVE_STATUSES, RELATIONSHIPS, RELATIONSHIP_KEYS,
                     INVERSE_LABELS, CERTAINTIES)
 
-SKILL_VERSION = "2.6.0"          # bumped on any skill change
+SKILL_VERSION = "2.7.0"          # bumped on any skill change
+# 2.7.0 — new restore.py, the counterpart to bundle.py: a backup nobody has
+#         tested restoring from is not actually a backup. Auto-detects a
+#         source (/mnt/user-data/outputs/ first, then the sibling tar),
+#         extracts to a temp dir, shows what it found (object/edge counts,
+#         when it was bundled) before touching anything, refuses to
+#         overwrite an existing non-empty project-model/ without --force,
+#         and even with --force moves the existing directory aside rather
+#         than deleting it. Runs check --strict on the result automatically
+#         and reports it plainly, so "restored" and "restored to something
+#         coherent" are never conflated.
 # 2.6.0 — new bundle.py, called automatically and unconditionally at the end
 #         of regenerate() -- i.e. after every new/link/status/amend/supersede,
 #         with no agent judgment involved. Writes project-model-backup.tar.gz

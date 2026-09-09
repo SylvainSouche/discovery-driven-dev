@@ -4,6 +4,24 @@ Two version numbers, deliberately. `version` is the skill; `schema_version` is
 the on-disk object format. A skill change that does not alter the format does
 not trigger a migration.
 
+## 2.7.0 — schema_version 2
+
+- New `restore.py`, the counterpart to 2.6.0's `bundle.py`. A backup nobody
+  has tested restoring from is not actually a backup.
+- Auto-detects a source when `--from` isn't given: `/mnt/user-data/outputs/`
+  first (the copy that actually survives a sandbox reset), then the sibling
+  tarball. Extracts to a temp directory first — never writes into place
+  directly — and prints what it found (object/edge counts, when it was
+  bundled) before touching anything, so a stale backup doesn't silently
+  clobber newer work.
+- Refuses to overwrite an existing, non-empty `project-model/` without
+  `--force`. Even with `--force`, the existing directory is moved aside
+  (`project-model.pre-restore-<date>/`) rather than deleted — the same
+  additive-only discipline `migrate.py` already uses for its own backups.
+- Runs `check --strict` on the result automatically and reports it plainly.
+  "Restored" and "restored to something coherent" are not the same claim,
+  and this doesn't let them be conflated silently.
+
 ## 2.6.0 — schema_version 2
 
 - New `scripts/bundle.py`, called automatically and unconditionally at the

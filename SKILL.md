@@ -1,6 +1,6 @@
 ---
 name: discovery-driven-dev
-version: 2.6.0
+version: 2.7.0
 schema_version: 2
 license: MIT
 description: Keep requirements, decisions, use cases and implementation links in durable files instead of in the conversation. Use when specifying, designing, or building software across more than one session — or whenever a project has a project-model/ directory.
@@ -45,7 +45,10 @@ triggers `bundle.py` unconditionally, exporting a copy to
 actually survives a sandbox reset. Nothing to do here — it's automatic — but
 know that it's *why* a `project-model-backup.tar.gz` will appear on disk, and
 don't rely on that sibling copy alone: it shares the same sandbox as
-everything else and won't survive a full reset by itself.
+everything else and won't survive a full reset by itself. If `project-model/`
+is ever missing or looks wrong at the start of a session, run
+`scripts/restore.py` before doing anything else — it finds the last good
+bundle and rebuilds from it.
 
 ## Orientation, every session
 
@@ -115,6 +118,7 @@ spec-grade statements, and they are where implementation attaches:
 | `model.py supersede` | replace an object — absorb into one, or split across several |
 | `model.py check --strict` | validity, tamper detection, dangling edges, cycles |
 | `bundle.py` | runs automatically after every write — exports outside the sandbox, no attention needed |
+| `restore.py` | rebuild `project-model/` from a bundle after a wipeout — auto-detects the source, refuses to overwrite without `--force` |
 | `model.py leaves` | most-specific requirements |
 | `trace.py find\|show\|walk\|orphans` | cheap reads, computed inverses |
 | `trace.py open` | the outstanding-work agenda, derived from status |

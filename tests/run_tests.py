@@ -10,6 +10,7 @@ Each test builds a throwaway model in a temporary directory. Nothing here
 touches a real project.
 """
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -296,6 +297,26 @@ def t_auto_bundle(d):
     run(d, "model.py", "status", "--id", "r", "--to", "proposed")
     assert backup.stat().st_mtime >= mtime_after_seed, \
         "amend/status/link must re-trigger the bundle, not only new"
+
+
+def t_restore_after_wipeout(d):
+    seed(d)  # bundled automatically by every seed() write
+    before = sorted(p.name for p in (d / "project-model").glob("*/*.md"))
+    shutil.rmtree(d / "project-model")  # simulate a full sandbox wipeout
+    out = run(d, "restore.py")
+    assert "Restored to" in out and "OK" in out
+    after = sorted(p.name for p in (d / "project-model").glob("*/*.md"))
+    assert before == after, "restore must recover exactly what was bundled, not a subset"
+
+
+def t_restore_refuses_without_force(d):
+    seed(d)  # project-model/ already exists and is non-empty from this alone
+    out = run(d, "restore.py", expect_fail=True)
+    assert "Refusing to overwrite" in out
+    out = run(d, "restore.py", "--force")
+    assert "moved aside" in out.lower() or "Moved existing" in out
+    pre_restore_dirs = list(d.glob("project-model.pre-restore-*"))
+    assert pre_restore_dirs, "the pre-existing model must be preserved, not deleted"
 
 
 TESTS = [(k[2:].replace("_", " "), v) for k, v in sorted(globals().items())
