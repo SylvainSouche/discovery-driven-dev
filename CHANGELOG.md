@@ -4,6 +4,30 @@ Two version numbers, deliberately. `version` is the skill; `schema_version` is
 the on-disk object format. A skill change that does not alter the format does
 not trigger a migration.
 
+## 2.8.0 — schema_version 2
+
+- `bundle.py` gained a third, optional export: a dedicated git backup
+  branch. Unlike the tar exports, this is the one with actual version
+  history, not just a latest-state snapshot. Configured once, deliberately
+  — `project-model/.backup-remote.json` (`{"remote": "origin", "branch":
+  "..."}`) — never assumed; SKILL.md now instructs the agent to ask the
+  user once if this file doesn't exist, rather than silently skipping it
+  or silently assuming yes.
+- Once configured, pushing is as automatic as the tar bundling already
+  was: no agent judgment per write. It never touches the current branch or
+  working tree — a temporary git worktree checks out (or orphan-creates)
+  the backup branch in isolation, gets a synced copy of `project-model/`,
+  commits, pushes, and is removed, so auto-backup noise can never land in
+  the project's real history. Pushing anywhere else stays a confirmed
+  action, same as any other push.
+- Caught a real bug in exactly this path during testing, not a hypothetical
+  one: the first-ever backup leaked `README.md` (and anything else on the
+  current branch) into the orphan branch, because `git rm` silently
+  refuses to clear a freshly-orphaned file without `-f`, and that failure
+  wasn't being checked. Every git step in `git_backup()` now checks its
+  own return code and reports a specific failure reason rather than
+  proceeding on a silent error.
+
 ## 2.7.0 — schema_version 2
 
 - New `restore.py`, the counterpart to 2.6.0's `bundle.py`. A backup nobody

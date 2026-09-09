@@ -1,6 +1,6 @@
 ---
 name: discovery-driven-dev
-version: 2.7.0
+version: 2.8.0
 schema_version: 2
 license: MIT
 description: Keep requirements, decisions, use cases and implementation links in durable files instead of in the conversation. Use when specifying, designing, or building software across more than one session — or whenever a project has a project-model/ directory.
@@ -49,6 +49,17 @@ everything else and won't survive a full reset by itself. If `project-model/`
 is ever missing or looks wrong at the start of a session, run
 `scripts/restore.py` before doing anything else — it finds the last good
 bundle and rebuilds from it.
+
+If `project-model/` isn't inside a git repository with a remote, **ask the
+user once** whether to set one up for real version history — a tar snapshot
+only ever holds the latest state; git holds every decision's own diff. Do
+not assume yes, and do not silently skip asking. Once they say yes and
+`project-model/.backup-remote.json` exists (`{"remote": "origin", "branch":
+"..."}`), every write pushes there automatically, same as the tar export —
+to a dedicated branch only, never to the project's real `main`, so
+auto-backup noise never lands in its actual history. Pushing anywhere else
+— the real branch a human will read — stays something you confirm, same as
+any other push.
 
 ## Orientation, every session
 
@@ -117,7 +128,7 @@ spec-grade statements, and they are where implementation attaches:
 | `model.py amend` | relabel alias/origin/facets/certainty in place — not a decision, so no supersession |
 | `model.py supersede` | replace an object — absorb into one, or split across several |
 | `model.py check --strict` | validity, tamper detection, dangling edges, cycles |
-| `bundle.py` | runs automatically after every write — exports outside the sandbox, no attention needed |
+| `bundle.py` | runs automatically after every write — exports outside the sandbox, no attention needed; also pushes to a dedicated git backup branch once `.backup-remote.json` is configured |
 | `restore.py` | rebuild `project-model/` from a bundle after a wipeout — auto-detects the source, refuses to overwrite without `--force` |
 | `model.py leaves` | most-specific requirements |
 | `trace.py find\|show\|walk\|orphans` | cheap reads, computed inverses |

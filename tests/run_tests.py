@@ -319,6 +319,52 @@ def t_restore_refuses_without_force(d):
     assert pre_restore_dirs, "the pre-existing model must be preserved, not deleted"
 
 
+def _git(args, cwd):
+    r = subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True)
+    assert r.returncode == 0, f"git {' '.join(args)} failed:\n{r.stdout}\n{r.stderr}"
+    return r.stdout
+
+
+def t_git_backup(d):
+    remote = d / "remote.git"
+    work = d / "work"
+    work.mkdir()
+    _git(["init", "-q", "--bare", str(remote)], cwd=d)
+    _git(["init", "-q"], cwd=work)
+    _git(["config", "user.email", "test@test.com"], cwd=work)
+    _git(["config", "user.name", "Test"], cwd=work)
+    _git(["remote", "add", "origin", str(remote)], cwd=work)
+    (work / "README.md").write_text("hello\n")
+    _git(["add", "README.md"], cwd=work)
+    _git(["commit", "-q", "-m", "initial"], cwd=work)
+    starting_branch = _git(["branch", "--show-current"], cwd=work).strip()
+    starting_log = _git(["log", "--oneline"], cwd=work)
+
+    seed(work)  # no .backup-remote.json yet -- must be a no-op, not an error
+    assert "project-model-backup" not in _git(["branch", "-a"], cwd=work)
+
+    (work / "project-model" / ".backup-remote.json").write_text(
+        '{"remote": "origin", "branch": "project-model-backup"}')
+    run(work, "model.py", "status", "--id", "r", "--to", "proposed")  # any write re-bundles
+
+    # the backup branch exists on the remote with a real commit...
+    backup_log = _git(["log", "project-model-backup", "--oneline"], cwd=remote)
+    assert "auto-backup" in backup_log
+
+    # ...and the working branch is completely untouched by it
+    assert _git(["branch", "--show-current"], cwd=work).strip() == starting_branch
+    assert _git(["log", "--oneline"], cwd=work) == starting_log
+    assert _git(["worktree", "list"], cwd=work).count("\n") == 1, \
+        "the temporary worktree must be cleaned up, not left behind"
+
+    # a second, genuinely different write builds on top of the same branch
+    # rather than re-orphaning it (rc is already confirmed by seed() itself,
+    # so re-confirming it would be a true no-op -- deferred is a real change)
+    run(work, "model.py", "status", "--id", "rc", "--to", "deferred")
+    second_log = _git(["log", "project-model-backup", "--oneline"], cwd=remote)
+    assert second_log.count("\n") == 2, "must fetch and extend, not create a fresh orphan each time"
+
+
 TESTS = [(k[2:].replace("_", " "), v) for k, v in sorted(globals().items())
          if k.startswith("t_")]
 

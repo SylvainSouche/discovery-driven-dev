@@ -48,7 +48,24 @@ from schema import (SCHEMA_VERSION, TYPES, STATUSES, DEFAULT_STATUS,
                     INACTIVE_STATUSES, RELATIONSHIPS, RELATIONSHIP_KEYS,
                     INVERSE_LABELS, CERTAINTIES)
 
-SKILL_VERSION = "2.7.0"          # bumped on any skill change
+SKILL_VERSION = "2.8.0"          # bumped on any skill change
+# 2.8.0 — bundle.py gained a third, optional export: if
+#         project-model/.backup-remote.json exists ({"remote": "origin",
+#         "branch": "..."}), every write also pushes to that dedicated git
+#         branch. Unlike the tar exports, this is the one with actual
+#         version history, not just a latest-state snapshot. The config
+#         file is created once, deliberately, by the agent asking the user
+#         -- never assumed -- but once it exists, pushing is as automatic
+#         and judgment-free as the tar bundling already was.
+#         Never touches the current branch or working tree: a temporary
+#         git worktree checks out (or orphan-creates) the backup branch in
+#         isolation, gets a synced copy of project-model/, commits, pushes,
+#         and is removed -- so auto-backup noise can never land in the
+#         project's real history. Caught a real bug in exactly this path
+#         during testing: the first-ever backup leaked README.md (and
+#         anything else on the current branch) into the orphan branch,
+#         because `git rm` silently refuses to clear a freshly-orphaned
+#         file without -f, and the failure wasn't being checked.
 # 2.7.0 — new restore.py, the counterpart to bundle.py: a backup nobody has
 #         tested restoring from is not actually a backup. Auto-detects a
 #         source (/mnt/user-data/outputs/ first, then the sibling tar),
