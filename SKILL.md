@@ -1,6 +1,6 @@
 ---
 name: discovery-driven-dev
-version: 2.8.0
+version: 2.9.0
 schema_version: 2
 license: MIT
 description: Keep requirements, decisions, use cases and implementation links in durable files instead of in the conversation. Use when specifying, designing, or building software across more than one session — or whenever a project has a project-model/ directory.
@@ -125,8 +125,9 @@ spec-grade statements, and they are where implementation attaches:
 | Command | Does |
 |---|---|
 | `model.py new\|link\|status` | the only write path |
+| `model.py link --replace\|unlink` | re-point or remove an edge — `link` alone only appends |
 | `model.py amend` | relabel alias/origin/facets/certainty in place — not a decision, so no supersession |
-| `model.py supersede` | replace an object — absorb into one, or split across several |
+| `model.py supersede` | replace an object — absorb into one, or split across several; an absorb re-points children automatically |
 | `model.py check --strict` | validity, tamper detection, dangling edges, cycles |
 | `bundle.py` | runs automatically after every write — exports outside the sandbox, no attention needed; also pushes to a dedicated git backup branch once `.backup-remote.json` is configured |
 | `restore.py` | rebuild `project-model/` from a bundle after a wipeout — auto-detects the source, refuses to overwrite without `--force` |

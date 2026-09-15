@@ -4,6 +4,35 @@ Two version numbers, deliberately. `version` is the skill; `schema_version` is
 the on-disk object format. A skill change that does not alter the format does
 not trigger a migration.
 
+## 2.9.0 — schema_version 2
+
+Reconciliation. A second lineage branched off 2.4.0 and evolved independently
+to its own 2.4.1, never seeing 2.5.0 through 2.8.0. Neither side had the
+other's work; this merges both, dropping nothing.
+
+Pulled in from the other lineage:
+
+- `model.py unlink`, and `model.py link --replace OLD --to NEW`. `link` was
+  pure append, so there was no sanctioned way to fix a wrong edge short of
+  hand-editing frontmatter, which the checksum forbids.
+- `supersede` auto-repoints orphaned `refines` children after an **absorb**
+  (one replacement, not a judgment call). The **split** case still asks, but
+  now advises `--replace`, not plain `link`, which could not complete the
+  re-point it described.
+- `restores` now maps to `decided_by` during migration, not `supersedes` —
+  "X restores Y" means Y came back, not that it was replaced.
+- `live-superseded` now checks the replaced object is *inactive*, not
+  literally `status == "superseded"`, so a rejected object later replaced
+  isn't misflagged.
+- Migration now reverts only on faults it could itself have caused
+  (`MIGRATION_FAULTS`) — a legacy model with any pre-existing defect
+  previously could never be migrated, and so could never be brought under
+  the governance that would let anyone fix it.
+
+Kept from this lineage, the other never had: `amend`, the whole
+`bundle.py`/`restore.py`/git-backup persistence layer, citation/edge-parity
+and `log-tampered` checks, and the flattened repo structure.
+
 ## 2.8.0 — schema_version 2
 
 - `bundle.py` gained a third, optional export: a dedicated git backup

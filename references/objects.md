@@ -157,8 +157,23 @@ statements, both superseding one.
 - Refinement parents are inherited by **following supersession**, not by
   copying a dead pointer. A single heir is followed automatically; a parent
   that was split refuses to guess and prints the commands to choose.
-- Children still refining the replaced object are listed immediately, and
-  `check` reports `refines-dead` until they are re-pointed.
+- After an **absorb** there is exactly one replacement, so children refining
+  the replaced object are re-pointed **automatically**. After a **split** they
+  are listed instead, because which half each should refine is a judgment call.
+- `check` reports `refines-dead` until every child is re-pointed.
+
+### Re-pointing an edge
+
+`link` appends. To move an edge, replace it in one operation:
+
+```bash
+model.py link --from <child> --key refines --replace <old> --to <new>
+```
+
+Doing this as an add followed by a remove leaves the model transiently
+incoherent, and if the second step is forgotten, permanently so. `model.py
+unlink` exists for removing an edge written in error, but re-pointing should
+use `--replace`.
 
 `check` also reports a `live-superseded` object (something replaced it but its
 status says otherwise) and an `orphan-superseded` one (marked replaced with

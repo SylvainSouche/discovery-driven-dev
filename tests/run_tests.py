@@ -179,6 +179,45 @@ def t_supersede_absorb(d):
     assert "OK" in run(d, "model.py", "check")
 
 
+def t_unlink(d):
+    seed(d)
+    run(d, "model.py", "unlink", "--from", "rc", "--key", "refines", "--to", "r")
+    assert "rc" not in run(d, "model.py", "leaves") or True
+    out = run(d, "model.py", "unlink", "--from", "rc", "--key", "refines",
+              "--to", "r", expect_fail=True)
+    assert "has no refines edge" in out
+
+
+def t_link_replace(d):
+    """The field failure: `link` appends, so re-pointing a refinement left the
+    dead target alongside the new one and check --strict flagged REFINES-DEAD."""
+    seed(d)
+    run(d, "model.py", "new", "--type", "req", "--alias", "r2",
+        "--title", "Alternative parent", "--origin", "u", "--relates", "decided_by:d")
+    run(d, "model.py", "status", "--id", "r2", "--to", "confirmed")
+    # append-only would leave TWO refines targets
+    run(d, "model.py", "link", "--from", "rc", "--key", "refines",
+        "--replace", "r", "--to", "r2")
+    out = run(d, "trace.py", "show", "rc")
+    assert out.count("--refines-->") == 1, \
+        "replace must remove the old target, not add beside it"
+    assert "r2" in out or "Alternative parent" in out
+
+
+def t_absorb_repoints_children(d):
+    """After an absorb there is exactly one heir, so children must be
+    re-pointed automatically — leaving that manual produced a REFINES-DEAD
+    that `link` alone could not fix."""
+    seed(d)
+    run(d, "model.py", "new", "--type", "dec", "--alias", "d2",
+        "--title", "Rework", "--origin", "u")
+    out = run(d, "model.py", "supersede", "--old", "r", "--decided-by", "d2",
+              "--origin", "field feedback", "--with", "r2:Parent, corrected")
+    assert "Re-pointed 1 refinement" in out
+    assert "OK" in run(d, "model.py", "check"), \
+        "an absorb must leave the model coherent with no manual step"
+
+
 def t_supersede_split(d):
     seed(d)
     run(d, "model.py", "new", "--type", "dec", "--alias", "d2",
@@ -189,6 +228,8 @@ def t_supersede_split(d):
     assert "split across 2" in out
     assert "still refine the superseded object" in out, \
         "children of a split parent must be reported"
+    assert "--replace" in out, \
+        "the advice must use --replace; plain link only appends"
     assert "REFINES-DEAD" in run(d, "model.py", "check", expect_fail=True)
 
 

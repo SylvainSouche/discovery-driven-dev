@@ -69,8 +69,14 @@ REL_MAP = {
     # --- supersession under other names ---
     "corrects":          ("supersedes", False),
     "reverts":           ("supersedes", False),
-    "restores":          ("supersedes", False),
     "revises_partial":   ("supersedes", False),
+
+    # NOT supersession. "X restores Y" means Y is brought BACK — vindicated,
+    # not replaced. The FSM pilot has DEC-eb93741c restoring AI-92654254 after
+    # an intervening decision was undone; that proposal became the accepted
+    # answer. Mapping it to `supersedes` would record the opposite of what
+    # happened, so it becomes an acceptance instead.
+    "restores":          ("decided_by", True),
 
     # --- the untyped escape hatch, and near-misses ---
     "related":           ("informed_by", False),
@@ -144,7 +150,8 @@ QUALIFIED = {
     "reopens": "reopens",
     "corrects": "corrects",
     "reverts": "reverts",
-    "restores": "restores",
+    "restores": "REINSTATED BY — this object was brought back into force, not "
+                "replaced; confirm its status reflects acceptance",
     "rejects": "rejects",
 }
 
@@ -452,7 +459,9 @@ def migrate(root, apply=False, report_path=None):
     try:
         import argparse as _ap
         ns = _ap.Namespace(strict=False, limit=5)
-        check_ok = (model.cmd_check(root, ns) == 0)
+        # Revert only on faults the migration itself could have caused. A
+        # pre-existing content defect must not make a model unmigratable.
+        check_ok = (model.cmd_check(root, ns, fail_on=model.MIGRATION_FAULTS) == 0)
     except SystemExit:
         check_ok = False
 
@@ -470,6 +479,13 @@ def migrate(root, apply=False, report_path=None):
 
     print(f"\nApplied and verified. Pre-migration copy at {backup}")
     print(f"To undo:  python3 migrate.py --root {root} --rollback")
+
+    ns2 = __import__("argparse").Namespace(strict=False, limit=0)
+    if model.cmd_check(root, ns2) != 0:
+        print("\nThe model carries pre-existing defects that migration did not "
+              "cause and does not fix. They are listed above and by "
+              "`model.py check`. Migration succeeded; these are yours to "
+              "resolve now that the model is under governance.")
 
 
 if __name__ == "__main__":

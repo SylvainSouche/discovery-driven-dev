@@ -72,6 +72,21 @@ them grouped by the kind of question, not one at a time, and propose the status
 change you think is right so the user is confirming rather than deciding from
 scratch. Interrogating item by item is how a review gets abandoned.
 
+## Migration does not fix the model
+
+Migration verifies **its own** correctness — conservation, bodies, structural
+validity — and reverts if any of that fails. It does not judge the model's
+content, and a pre-existing defect never blocks it.
+
+That distinction was learned the hard way: an early version treated
+`live-superseded` as a migration failure, so a legacy model carrying four such
+objects auto-reverted every time. It could not be migrated, and therefore could
+not be brought under the governance that would let anyone fix it.
+
+After a successful migration, `check` may report content defects the legacy
+model always had. Say plainly that migration succeeded and these are now
+fixable — usually one `model.py status` call each.
+
 ## Assessing risk honestly
 
 Risk is proportional to the review queue and the degraded-edge count, both of

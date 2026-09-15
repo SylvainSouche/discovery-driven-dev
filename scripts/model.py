@@ -13,7 +13,9 @@ are yours to edit freely — the checksum deliberately does not cover them.
 
 Subcommands:
     new      create an object
-    link     add a relationship between two existing objects
+    link     add a relationship between two existing objects (--replace to
+             re-point an existing edge in one operation, not add-then-remove)
+    unlink   remove a relationship edge written in error
     status   change an object's status
     amend    change a labeling field (alias/origin/facets/certainty) in
              place, logging a terse, checksummed "date: reason" entry
@@ -48,7 +50,31 @@ from schema import (SCHEMA_VERSION, TYPES, STATUSES, DEFAULT_STATUS,
                     INACTIVE_STATUSES, RELATIONSHIPS, RELATIONSHIP_KEYS,
                     INVERSE_LABELS, CERTAINTIES)
 
-SKILL_VERSION = "2.8.0"          # bumped on any skill change
+SKILL_VERSION = "2.9.0"          # bumped on any skill change
+# 2.9.0 — reconciled with a lineage that branched off 2.4.0 and evolved
+#         independently to its own "2.4.1" (never overlapping mine, 2.5.0
+#         through 2.8.0). Pulled in three things that lineage had and this
+#         one didn't:
+#         `model.py unlink`, and `link --replace OLD --to NEW` to re-point an
+#         edge in one operation -- link was pure append, so there was no
+#         sanctioned way to fix a wrong edge short of hand-editing frontmatter,
+#         which the checksum forbids. `supersede` now auto-repoints orphaned
+#         `refines` children after an absorb (one replacement, not a judgment
+#         call) and gives the split case working advice (`--replace`, not
+#         plain `link`, which could not complete what it described).
+#         `restores` now maps to `decided_by` during migration, not
+#         `supersedes` -- "X restores Y" means Y came back, not that it was
+#         replaced. `live-superseded` now checks the replaced object is
+#         inactive, not literally `status == "superseded"`, so a rejected
+#         object that was later replaced isn't misflagged. Migration now
+#         reverts only on faults it could itself have caused
+#         (`MIGRATION_FAULTS`) -- previously a legacy model with any
+#         pre-existing defect could never be migrated, and so could never be
+#         brought under the governance that would let anyone fix it.
+#         This skill kept everything from its own line that the other never
+#         had: amend, the whole bundle.py/restore.py/git-backup persistence
+#         layer, citation/edge-parity + log-tampered checks, and the
+#         flattened repo structure.
 # 2.8.0 — bundle.py gained a third, optional export: if
 #         project-model/.backup-remote.json exists ({"remote": "origin",
 #         "branch": "..."}), every write also pushes to that dedicated git
@@ -354,15 +380,53 @@ def cmd_link(root, a):
         raise SystemExit(
             f"'{a.key}' is a computed inverse and is never stored. "
             f"Write the opposite key on the other object instead.")
-    rels = dict(s["rels"])
+    rels = {k: list(v) for k, v in s["rels"].items()}
     rels.setdefault(a.key, [])
-    if dst in rels[a.key]:
-        print("Already linked; nothing to do.")
-        return
-    rels[a.key].append(dst)
+
+    # Re-pointing is one operation, not an add followed by a remove. Doing it
+    # in two steps leaves the model transiently incoherent — and if the second
+    # step is forgotten, permanently so.
+    if a.replace:
+        old = resolve(objs, a.replace)
+        if old not in rels[a.key]:
+            raise SystemExit(f"{src} has no {a.key} edge to {old}; nothing to "
+                             f"replace. Current: {rels[a.key] or '(none)'}")
+        rels[a.key].remove(old)
+        if dst in rels[a.key]:
+            print(f"Removed stale {a.key} -> {old}; the edge to {dst} was "
+                  f"already present.")
+        else:
+            rels[a.key].append(dst)
+            print(f"{src} --{a.key}--> {dst}  (replacing {old})")
+    else:
+        if dst in rels[a.key]:
+            print("Already linked; nothing to do.")
+            return
+        rels[a.key].append(dst)
+        print(f"{src} --{a.key}--> {dst}")
+
     write(root, s["fm"], rels, s["body"])
     regenerate(root)
-    print(f"{src} --{a.key}--> {dst}")
+
+
+def cmd_unlink(root, a):
+    """Relationships are not immutable the way ids are. An edge written by
+    mistake, or made obsolete by supersession, has to be removable — otherwise
+    the only remedy is hand-editing frontmatter, which the checksum forbids and
+    which this tool exists to prevent."""
+    objs = load(root)
+    src, dst = resolve(objs, a.frm), resolve(objs, a.to)
+    s = objs[src]
+    rels = {k: list(v) for k, v in s["rels"].items()}
+    if dst not in rels.get(a.key, []):
+        raise SystemExit(f"{src} has no {a.key} edge to {dst}. "
+                         f"Current {a.key}: {rels.get(a.key) or '(none)'}")
+    rels[a.key].remove(dst)
+    if not rels[a.key]:
+        del rels[a.key]
+    write(root, s["fm"], rels, s["body"])
+    regenerate(root)
+    print(f"{src} --{a.key}--> {dst}  removed")
 
 
 def cmd_status(root, a):
@@ -552,15 +616,43 @@ def cmd_supersede(root, a):
     orphaned = [i for i, o in objs.items()
                 if old_id in o["rels"].get("refines", [])
                 and o["fm"].get("status") not in INACTIVE_STATUSES]
-    if orphaned:
-        print(f"\n{len(orphaned)} object(s) still refine the superseded object "
-              f"and must be re-pointed:")
+    if orphaned and len(a.with_) == 1:
+        # Exactly one replacement, so where the children should point is not a
+        # judgment call. Doing it automatically removes the step most likely to
+        # be half-completed — and `link` alone cannot complete it, since it
+        # appends rather than replaces.
+        heir = resolve(load(root), created[0]) if created[0] else None
+        for i in orphaned:
+            o = load(root)[i]
+            rels = {k: list(v) for k, v in o["rels"].items()}
+            rels["refines"] = [heir if r == old_id else r for r in rels["refines"]]
+            write(root, o["fm"], rels, o["body"])
+        regenerate(root)
+        print(f"\nRe-pointed {len(orphaned)} refinement(s) from {old_id} to "
+              f"{heir}:")
+        for i in orphaned:
+            print(f"  {i} [{load(root)[i]['fm'].get('alias','-')}]")
+    elif orphaned:
+        print(f"\n{len(orphaned)} object(s) still refine the superseded object. "
+              f"It was split, so which replacement each should refine is a "
+              f"judgment call:")
         for i in orphaned:
             print(f"  {i} [{objs[i]['fm'].get('alias','-')}] {objs[i]['title'][:60]}")
-        print("Re-point each with: model.py link --from <id> --key refines --to <new>")
+        print(f"\nRe-point each with (note --replace; link alone only appends):")
+        print(f"  model.py link --from <id> --key refines "
+              f"--replace {old_id} --to <replacement>")
 
 
-def cmd_check(root, a):
+# Problems that mean the MIGRATION went wrong — structural, and migration's
+# own fault. Everything else (live-superseded, orphan-superseded, refines-dead,
+# origin, status) is a pre-existing property of the model's content: real, worth
+# fixing, but not evidence that the format conversion failed. Blocking on those
+# would make an incoherent legacy model permanently unmigratable — and therefore
+# permanently outside the governance that would let you fix it.
+MIGRATION_FAULTS = {"tampered", "dangling", "vocab", "illegal", "cycle", "schema"}
+
+
+def cmd_check(root, a, fail_on=None):
     objs = load(root)
     problems = []
     for i, o in objs.items():
@@ -630,10 +722,14 @@ def cmd_check(root, a):
         for t2 in o["rels"].get("supersedes", []):
             superseded_by[t2].append(i)
     for t2, srcs in superseded_by.items():
-        if t2 in objs and objs[t2]["fm"].get("status") != "superseded":
+        # The requirement is that a replaced object is not ACTIVE — not that it
+        # literally reads `superseded`. A rejected proposal that something later
+        # replaced is already inactive, and rewriting it to `superseded` would
+        # discard the more specific fact that it was rejected.
+        if t2 in objs and objs[t2]["fm"].get("status") not in INACTIVE_STATUSES:
             problems.append((t2, "live-superseded",
-                             f"status is '{objs[t2]['fm'].get('status')}' but "
-                             f"{', '.join(srcs)} supersede(s) it"))
+                             f"status is '{objs[t2]['fm'].get('status')}' — still "
+                             f"active, but {', '.join(srcs)} supersede(s) it"))
     for i, o in objs.items():
         if o["fm"].get("status") == "superseded" and i not in superseded_by:
             problems.append((i, "orphan-superseded",
@@ -690,9 +786,13 @@ def cmd_check(root, a):
     # Supersession breakages are incoherence, not untidiness: an active object
     # refining a replaced one, or a replaced object still marked live, means the
     # model asserts something it has already retracted. These must fail CI.
-    hard = {"tampered", "log-tampered", "dangling", "vocab", "illegal", "cycle",
-            "schema", "refines-dead", "live-superseded", "orphan-superseded"}
-    return 1 if (a.strict or set(by_kind) & hard) else 0
+    # migrate.py passes fail_on=MIGRATION_FAULTS to scope this to faults the
+    # migration itself could have caused, so a pre-existing content defect in a
+    # legacy model doesn't make it permanently unmigratable.
+    hard = fail_on if fail_on is not None else {
+        "tampered", "log-tampered", "dangling", "vocab", "illegal", "cycle",
+        "schema", "refines-dead", "live-superseded", "orphan-superseded"}
+    return 1 if (getattr(a, "strict", False) or set(by_kind) & hard) else 0
 
 
 def main():
@@ -722,6 +822,14 @@ def main():
     l.add_argument("--from", dest="frm", required=True)
     l.add_argument("--key", required=True, choices=sorted(RELATIONSHIP_KEYS))
     l.add_argument("--to", required=True)
+    l.add_argument("--replace", default="",
+                   help="the existing target this edge should replace, "
+                        "removing it in the same operation")
+
+    ul = add_root(sub.add_parser("unlink"))
+    ul.add_argument("--from", dest="frm", required=True)
+    ul.add_argument("--key", required=True, choices=sorted(RELATIONSHIP_KEYS))
+    ul.add_argument("--to", required=True)
 
     sup = add_root(sub.add_parser("supersede"))
     sup.add_argument("--old", required=True, help="object being replaced")
@@ -758,6 +866,8 @@ def main():
         cmd_new(root, a)
     elif a.cmd == "link":
         cmd_link(root, a)
+    elif a.cmd == "unlink":
+        cmd_unlink(root, a)
     elif a.cmd == "supersede":
         cmd_supersede(root, a)
     elif a.cmd == "status":
