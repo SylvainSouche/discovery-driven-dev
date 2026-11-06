@@ -37,6 +37,17 @@ Some of what the pilots revealed:
 The schema has been corrected four times by evidence and zero times by
 argument. That is the intended way for it to change.
 
+## Used in
+
+Version 2 runs the models of two projects, both public:
+
+| Project | What it is | How it got here | Objects · edges |
+|---|---|---|---|
+| [bmake-it](https://github.com/SylvainSouche/bmake-it) | BSD-make build system | The v1 pilot, migrated to v2 and developed on it since | 793 · 1,361 |
+| [OpenRider](https://github.com/SylvainSouche/OpenRider) | Manages, analyses and displays Garmin outings | Started on v2 from an empty model on 2026-10-13 | 741 · 1,195 |
+
+Both pass `model.py check` with no problems. Counts are as of 2026-11-03.
+
 ## Install
 
 Download `dist/discovery-driven-dev.zip` from a release, or build it:
@@ -136,11 +147,10 @@ relocatability.
 
 ## Status
 
-Version 2 has been verified against both pilot models and has a passing test
-suite, but **has not yet been used to run a project from scratch.** Its
-predecessor was also coherent before it met real work. Treat the design as
-evidence-shaped but not yet field-tested, and expect the schema to be corrected
-by data again.
+Version 2 has been verified against both pilot models, has a passing test
+suite, and is in active use on two projects (see [Used in](#used-in)), one of
+them started from scratch on v2. That is still two projects and one author.
+Expect the schema to be corrected by data again.
 
 ## Licence
 
